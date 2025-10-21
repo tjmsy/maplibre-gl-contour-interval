@@ -26,33 +26,38 @@ class UIManager {
     container.appendChild(input);
 
     this.controls.push(container);
-    return container;
+    return { element: container, input };
   }
 
-  createShowButton() {
+  createCheckboxControl(id, labelText, initialChecked = true) {
+    const container = document.createElement("div");
+    container.style.display = "none";
+    container.style.flexDirection = "row";
+    container.style.alignItems = "center";
+    container.style.margin = "4px 0";
+    container.id = `${id}-container`;
+
+    const label = document.createElement("label");
+    label.innerText = labelText;
+
+    const checkbox = document.createElement("input");
+    checkbox.id = `${id}-checkbox`;
+    checkbox.type = "checkbox";
+    checkbox.checked = initialChecked;
+    checkbox.style.marginLeft = "4px";
+
+    container.appendChild(label);
+    container.appendChild(checkbox);
+
+    this.controls.push(container);
+    return { element: container, checkbox };
+  }
+
+  createButton(id, labelText) {
     const button = document.createElement("button");
-    button.id = "show-button";
-    button.innerText = "ﾉﾉ";
-    button.style.color = "brown"
+    button.id = id;
+    button.innerText = labelText;
     return button;
-  }
-
-  createUIElements(options = {}) {
-    const { contourInterval = 10} = options;
-    this.container = document.createElement("div");
-    this.container.className = "maplibregl-ctrl maplibregl-ctrl-group";
-    this.container.style.display = "flex";
-    this.container.style.flexDirection = "column";
-
-    const showButton = this.createShowButton();
-    const contourIntervalControl = this.createInputControl(
-      "contour-interval",
-      "Contour Interval(at zoom level 14):",
-      contourInterval
-    );
-
-    this.container.appendChild(showButton);
-    this.container.append(...this.controls);
   }
 
   showHideUI(isVisible) {

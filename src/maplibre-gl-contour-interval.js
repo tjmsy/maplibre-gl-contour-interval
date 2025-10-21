@@ -1,25 +1,37 @@
-import UIManager from "./UIManager.js";
-import EventManager from "./EventManager.js";
+import ContourControlUI from "./ContourControlUI.js";
 
 class ContourIntervalControl {
-  constructor(demSource, initialContourInterval = 10) {
+  constructor(demSource, initialContourInterval = 10, baseZoom = 14) {
     this.demSource = demSource;
     this.map = null;
-    this.container = null;
-    this.uiManager = new UIManager();
-    this.eventManager = new EventManager();
 
-    this.contourInterval = initialContourInterval;
-    this.isOutsideClickListenerActive = false;
-    this.isUIVisible = false;
+    this.baseZoom = baseZoom;
+    this.baseContourInterval = initialContourInterval;
+    this.currentContourInterval = null;
+
+    this.contourUI = new ContourControlUI(initialContourInterval);
+  }
+
+  getClippedCurrentZoom() {
+    let z = Math.floor(this.map.getZoom());
+    return z > this.baseZoom ? this.baseZoom : z;
+  }
+
+  getScale(zoomLevel) {
+    return Math.pow(2, this.baseZoom - zoomLevel);
   }
 
   generateContourTilesURL() {
     const thresholds = {};
-    const baseInterval = this.contourInterval;
+    for (let zoomLevel = this.baseZoom; zoomLevel >= 0; zoomLevel--) {
+      let interval;
 
-    for (let zoomLevel = 14; zoomLevel >= 0; zoomLevel--) {
-      const interval = baseInterval * Math.pow(2, 14 - zoomLevel);
+      if (this.adjustByZoom) {
+        interval = this.baseContourInterval * this.getScale(zoomLevel);
+      } else {
+        interval = this.currentContourInterval ?? this.baseContourInterval;
+      }
+
       thresholds[zoomLevel] = [interval, interval * 5];
     }
 
@@ -40,57 +52,81 @@ class ContourIntervalControl {
     }
   }
 
-  attachEventListeners() {
-    const inputConfig = [
-      {
-        elementId: "#contour-interval-input",
-        property: "contourInterval",
-        updateMethod: this.updateContourInterval.bind(this),
-      },
-    ];
-
-    const showButton = this.container.querySelector("#show-button");
-    this.eventManager.addClickListener(showButton, () => {
-      this.isUIVisible = !this.isUIVisible;
-      this.uiManager.showHideUI(this.isUIVisible);
-
-      if (this.isUIVisible && !this.isOutsideClickListenerActive) {
-        this.eventManager.addOutsideClickListener(this.container, () => {
-          this.uiManager.showHideUI(false);
-          this.isUIVisible = false;
-          this.isOutsideClickListenerActive = false;
-        });
-        this.isOutsideClickListenerActive = true;
-      }
-    });
-
-    inputConfig.forEach(({ elementId, property, updateMethod }) => {
-      const inputElement = this.container.querySelector(elementId);
-
-      this.eventManager.addInputListener(inputElement, (value) => {
-        this[property] = value;
-        updateMethod();
-      });
-    });
+  updateBaseContourIntervalFromCurrent() {
+    if (this.currentContourInterval == null) return;
+    const currentZoom = this.getClippedCurrentZoom();
+    const scale = this.getScale(currentZoom);
+    this.baseContourInterval = this.currentContourInterval / scale;
   }
 
-  createUI() {
-    this.uiManager.createUIElements({contourInterval: this.contourInterval});
-    this.container = this.uiManager.container;
+  updateInputValue() {
+    const currentZoom = this.getClippedCurrentZoom();
+    const scale = this.getScale(currentZoom);
+    this.currentContourInterval = this.baseContourInterval * scale;
+    this.contourUI.inputElement.value = this.currentContourInterval;
   }
 
   onAdd(map) {
     this.map = map;
-    this.createUI();
-    this.attachEventListeners();
+
+    this.contourUI.createUI();
+    this.adjustByZoom = true;
+
+    this.contourUI.attachUIEvents(
+      () => {
+        const raw = this.contourUI.inputElement.value;
+        const value = parseFloat(raw);
+        if (!isNaN(value) && value > 0) {
+          this.currentContourInterval = value;
+
+          if (this.adjustByZoom) {
+            const currentZoom = this.getClippedCurrentZoom();
+            const scale = this.getScale(currentZoom);
+            this.baseContourInterval = value / scale;
+          }
+          this.updateContourInterval();
+        }
+      },
+      (checked) => {
+        this.adjustByZoom = checked;
+
+        if (checked) {
+          this.updateBaseContourIntervalFromCurrent();
+        }
+
+        this.updateContourInterval();
+
+        if (this.adjustByZoom) {
+          this.updateInputValue();
+        } else {
+          if (this.currentContourInterval != null) {
+            this.contourUI.inputElement.value = this.currentContourInterval;
+          }
+        }
+      }
+    );
+
+    this.map.on("zoom", () => {
+      if (this.adjustByZoom) {
+        this.updateInputValue();
+        this.updateContourInterval();
+      }
+    });
+
     this.updateContourInterval();
-    return this.container;
+
+    if (this.adjustByZoom) {
+      this.updateInputValue();
+    } else if (this.currentContourInterval != null) {
+      this.contourUI.inputElement.value = this.currentContourInterval;
+    }
+
+    return this.contourUI.container;
   }
 
   onRemove() {
-    this.eventManager.clearAllListeners();
-    this.container.remove();
-    this.container = null;
+    if (this.map) this.map.off("zoom");
+    this.contourUI.container.remove();
     this.map = null;
   }
 }
