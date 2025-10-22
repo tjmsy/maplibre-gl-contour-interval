@@ -9,8 +9,6 @@ const map = new maplibregl.Map({
 });
 
 map.on("load", () => {
-  const defaultContourInterval = 10;
-
   const demSource = new mlcontour.DemSource({
     url: "https://gbank.gsj.jp/seamless/elev/terrainRGB/mixed/{z}/{y}/{x}.png",
     encoding: "mapbox",
@@ -22,20 +20,21 @@ map.on("load", () => {
   });
   demSource.setupMaplibre(maplibregl);
 
-  const initialContourTiles = demSource.contourProtocolUrl({
-    thresholds: {},
-    contourLayer: "contours",
-    elevationKey: "ele",
-    levelKey: "level",
-    extent: 4096,
-    buffer: 1,
-  });
-
   map.addSource("contour-source", {
     type: "vector",
-    tiles: [initialContourTiles],
+    tiles: [
+      demSource.contourProtocolUrl({
+        thresholds: {},
+        contourLayer: "contours",
+        elevationKey: "ele",
+        levelKey: "level",
+        extent: 4096,
+        buffer: 1,
+      }),
+    ],
     maxzoom: 19,
-    attribution: "<a href='https://tiles.gsj.jp/tiles/elev/tiles.html#h_mixed' target='_blank'>産総研 シームレス標高タイル(統合DEM)</a>"
+    attribution:
+      "<a href='https://tiles.gsj.jp/tiles/elev/tiles.html#h_mixed' target='_blank'>産総研 シームレス標高タイル(統合DEM)</a>",
   });
 
   map.addLayer({
@@ -52,5 +51,10 @@ map.on("load", () => {
       "line-color": "#D25C00",
     },
   });
-  map.addControl(new ContourIntervalControl(demSource, defaultContourInterval), "top-left");
+
+  const defaultContourInterval = 10;
+  map.addControl(
+    new ContourIntervalControl(demSource, defaultContourInterval),
+    "top-left"
+  );
 });
