@@ -68,7 +68,6 @@ class ContourIntervalControl {
 
   onAdd(map) {
     this.map = map;
-    this.lastZoom = this.getClippedCurrentZoom();
 
     this.contourUI.createUI();
     this.adjustByZoom = true;
@@ -108,16 +107,8 @@ class ContourIntervalControl {
     );
 
     this.map.on("zoom", () => {
-      const currentZoom = this.getClippedCurrentZoom();
-
-      if (currentZoom === this.lastZoom) return;
-
-      this.lastZoom = currentZoom;
-
-      if (this.adjustByZoom) {
-        this.updateInputValue();
-        this.updateContourInterval();
-      }
+      if (!this.adjustByZoom) return;
+      this.updateInputValue();
     });
 
     this.updateContourInterval();
